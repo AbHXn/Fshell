@@ -99,7 +99,10 @@ def copy_file(src, dst):
 				os.makedirs(dst, exist_ok=True)
 				shutil.copy2(src, 
 					os.path.join(dst, os.path.basename(src)))
-		else: os.rename(src, dst)
+		else: 
+			with open(dst, "w", encoding='utf-8') as file_w:
+				with open(src, "r", encoding="utf-8") as file_r:
+					file_w.write(file_r.read())
 		return True
 	except Exception:
 		return False
@@ -147,22 +150,27 @@ def get_high_depth_node(croot, depth=0):
 			return get_high_depth_node(children, depth+1)
 	return croot
 
-def list_contents(folder):
+def list_contents(folders):
+	if not isinstance(folders, list):
+		folders = [('.', folders)]
 	try:
-		if os.path.exists(folder) and os.path.isfile(folder):
-			with open(folder, "r", encoding="utf-8") as txt_file:
-				print(txt_file.read())
-			return
-		with os.scandir(folder) as d_files:
-			for file_ in d_files:
-				name = file_.name
-				name = name +'/' if file_.is_dir() else name
-				print(f"\t{name}")
+		for parent, child in folders:
+			folder = os.path.join(parent, child) 
+			if os.path.exists(folder) and os.path.isfile(folder):
+				with open(folder, "r", encoding="utf-8") as txt_file:
+					print(txt_file.read())
+				return
+			with os.scandir(folder) as d_files:
+				for file_ in d_files:
+					name = file_.name
+					name = name +'/' if file_.is_dir() else name
+					print(f"\t{name}")
 	except Exception as error:
 		print(error)
 
 def execute_command_tree(croot, proot, folder_trace):
 	if not croot: return
+
 
 	if not proot and not croot.children and croot.status.optr == CHDIR:
 		try:
@@ -175,7 +183,8 @@ def execute_command_tree(croot, proot, folder_trace):
 			print(error)
 		return
 
-	real_path = os.path.join(folder_trace, croot.status.data)
+
+	real_path = join(folder_trace, croot.status.data)
 
 	if croot.status.optr == LIST_CONTENTS:
 		list_contents(real_path)
@@ -204,6 +213,7 @@ def execute_command_tree(croot, proot, folder_trace):
 		pairs = join(real_path, data)
 
 		for pdata, cdata in pairs:
+			pdata = os.path.join(*pdata)
 			current = os.path.join(pdata, cdata) \
 				if isinstance(cdata, str) else pdata
 
@@ -223,8 +233,6 @@ def execute_command_tree(croot, proot, folder_trace):
 				input_file(current)
 
 			elif op in (COPY, CUT):
-				if not os.path.exists(pdata):
-					os.makedirs(pdata, exist_ok=True)
 				if os.path.exists(cdata):
 					if op == COPY: 
 						copy_file(cdata, pdata)
