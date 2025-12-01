@@ -1,321 +1,462 @@
 from datetime import date
+from termcolor import cprint, colored
 import subprocess
+import sys
+import platform
 import os
 import shutil
 
-REMOVE      = '-'
-CREATE      = '+'
-COPY        = '+='
-CUT         = '-='
-CHDIR       = '*'
-INPUT       = '#'
-EXPR_OPEN   = '{'
-EXPR_CLOSE  = '}'
-LIST_OPEN   = '['
-LIST_CLOSE  = ']'
-LIST_CONTENTS = '!'
+REMOVE      	= '-'
+CREATE      	= '+'
+COPY        	= '+='
+CUT         	= '-='
+CHDIR       	= '*'
+INPUT       	= '#'
+EXPR_OPEN   	= '{'
+EXPR_CLOSE  	= '}'
+LIST_OPEN   	= '['
+LIST_CLOSE  	= ']'
+LIST_CONTENTS 	= '!'
+APPO			= '"'
 
-class Status:
-	def __init__(self, optr, data):
-		self.optr = optr
-		self.data = data
+# didn't implemented
+RE_APPEND 		= "=="
+RE_ASSIGN		= "="
 
-class Node:
-	def __init__(self, status, parent = None):
-		self.status = status
-		self.children = []
-		self.parent = parent
+D_CMDS   = ( REMOVE, CREATE, COPY, CUT, RE_ASSIGN, RE_APPEND )
+S_CMDS_A = ( LIST_CONTENTS, )
+S_CMDS_B = ( INPUT, CHDIR )
 
-	def add_child(self, child):
-		self.children.append(child)
+BASE_DIR = '.'
 
-class Script:
-	def __init__(self, code):
-		self.code = code
+class ExecUtils:
+
+	@staticmethod
+	def create_file(base, name):
+		try:
+			if name == "":  return False
+			path = os.path.join(base, name)
+			if name.endswith('/') or name.endswith(os.sep):
+				os.makedirs(path, exist_ok=True)
+			else:
+				os.makedirs(os.path.dirname(path), exist_ok=True)
+				if not os.path.exists(path):
+					with open(path, "w") as file:
+						pass
+			return True
+		except Exception as e:
+			cprint(f"File Creation Failed: {e}", "red")
+			return False
+
+	@staticmethod
+	def remove_file(path):
+		try:
+			if os.path.isdir(path):
+				shutil.rmtree(path)
+			elif os.path.exists(path):
+				os.remove(path)
+			return True
+		except Exception as e:
+			cprint(f"File Remove Error: {e}", "red")
+			return False
+
+	@staticmethod
+	def copy_file(src, dst):
+		try:
+			print(src, dst)
+			if os.path.exists(dst) and os.path.isdir(dst):
+				if os.path.isdir(src):
+					print("here")
+					shutil.copytree(src, os.path.join( dst,
+							os.path.basename(src)), dirs_exist_ok=True)
+				else:
+					os.makedirs(dst, exist_ok=True)
+					shutil.copy2(src, os.path.join(dst, os.path.basename(src)))
+			else: 
+				with open(dst, "w", encoding='utf-8') as file_w:
+					with open(src, "r", encoding="utf-8") as file_r:
+						file_w.write(file_r.read())
+			return True
+		except Exception as e:
+			cprint( f"File Copy Error: {e}", "red" )
+			return False
+
+	@staticmethod
+	def move_file(src, dst):
+		try:
+			if os.path.exists(src) and os.path.exists(dst):
+				shutil.move(src, dst)
+			else: os.rename(src, dst)
+			return True
+		except Exception:
+			cprint( f"File Move Error: {e}" , "red")
+			return False
+
+	@staticmethod
+	def list_contents(folders):
+		if not isinstance(folders, list):
+			folders = [('.', folders)]
+		try:
+			for parent, child in folders:
+				folder = os.path.join(parent, child) 
+				cprint(f"{child}:", "green")
+				if os.path.exists(folder) and os.path.isfile(folder):
+					with open(folder, "r", encoding="utf-8") as txt_file:
+						print(txt_file.read())
+					return
+				with os.scandir(folder) as d_files:
+					for file_ in d_files:
+						name = file_.name
+						name = colored(name, 'blue') if file_.is_dir() else name
+						print(f"{name}", end="  ")
+					print()
+		except Exception as error:
+			cprint( f"Listing Error: {e}", "red" )
+
+	@staticmethod
+	def input_file(file_name):
+		print(f"Enter text for {file_name} (Ctrl+C to save):")
+		try:
+			with open(file_name, "w", encoding='utf-8') as w_file:
+				while True:
+					line = input()
+					w_file.write(line + '\n')
+		except KeyboardInterrupt:
+			cprint( "File Saved", "green" )
+
+class ScriptHandler:
+	def __init__(self, script):
+		self.script = script
 
 	def execute(self, folder):
 		try:
 			dir_files = os.listdir(folder)
-			self.code = self.code.replace('*', str(dir_files))
-			results = eval(self.code)
-			return [line.strip() for line in results
-						 if line.strip()]
-		except Exception as e:
-			print("Script execution failed:", e)
-			return []
 			
-#### END OF CLASS
+			self.script = self.script[1:-1].replace( '*', str(dir_files) )
+			results = eval( self.script )
+			cprint(f"\tSCRIPT RESULT\n{results}", "green")
+			print()
+			return [line.strip() for line in results if line.strip()]
+		except Exception as e:
+			cprint(f"Script execution failed: {e}", "red")
+			return []
 
-def is_operator(optr):
-	return optr in {REMOVE, CREATE, CUT, COPY, CHDIR, INPUT}
+class DoubleCmdHandler:
+	def __init__(self, left, right, optr):
+		self.left  = left
+		self.right = right
+		self.optr = optr
 
-def input_file(file_name):
-	print(f"Enter text for {file_name} (Ctrl+C to save):")
-	try:
-		with open(file_name, "w", encoding='utf-8') as w_file:
-			while True:
-				line = input()
-				w_file.write(line + '\n')
-	except KeyboardInterrupt:
-		print("\nFile Saved.")
+	def execute_command( self, currentFolder ):
+		leftFiles 	 = self._full_path_data( self.left, currentFolder )
+		righFIles    = self._full_path_data( self.right, currentFolder )
+		finalContent = self.join_contents( leftFiles, righFIles ) 
 
-def create_file(base, name):
-	try:
-		if name == "": 
+		if finalContent == []: return False
+
+		for source, dest in finalContent:
+			source = os.path.join( currentFolder, source )
+			if self.optr == CREATE:
+				if os.path.exists(source):
+					ExecUtils.create_file(source, dest)
+				else: print(f"{ source } not exists.")
+
+			elif self.optr == REMOVE:
+				full_file = os.path.join( source, dest )
+				if os.path.exists(full_file):
+					ExecUtils.remove_file(full_file)
+				else: print(f"{dest} not found.")			
+
+			elif self.optr in (COPY, CUT):
+				if os.path.exists( source ):
+					if self.optr == COPY: 
+						ExecUtils.copy_file(source, dest)
+					else: ExecUtils.move_file(source, dest)
+				else: print(f"Source {dest} not found.")
+		return True
+
+	def _full_path_data( self , CmdHandler, folder ):
+		if isinstance( CmdHandler, ScriptHandler ):
+			content = CmdHandler.execute( folder )
+			return content
+		else: 
+			return CmdHandler
+
+	def join_contents( self, left_content, right_content ):
+		if not isinstance( left_content, list ):
+			left_content = [ left_content ]
+
+		if not isinstance( right_content, list ):
+			right_content = [ right_content ] 
+
+		final_content = [ ( file1, file2 ) for file1 in left_content 
+						  for file2 in right_content ]
+		return final_content
+
+
+class SingleCmdHandler:
+	def __init__(self, cmd, optr):
+		self.cmd = cmd
+		self.optr = optr
+
+	def execute_command( self, folder ):
+		final_content = self._full_path_data( self.cmd, folder )
+		final_content = [ final_content ] if not isinstance( final_content, list ) else final_content
+		try:
+			for cmd in final_content:
+				if self.optr == CHDIR:
+					trace_folder = os.path.join( folder, cmd )
+					try:
+						if os.path.isdir( trace_folder ):
+							os.chdir( trace_folder )
+						else: 
+							with open(trace_folder, "r", encoding='utf-8') as read_file:
+								print( read_file.read() )
+					except Exception as error:
+						print(error)
+
+				elif self.optr == LIST_CONTENTS:
+					list_path = os.path.join( folder, cmd )
+					ExecUtils.list_contents( list_path )
+
+				elif self.optr == INPUT:
+					full_file = os.path.join( folder, cmd )
+					if not os.path.exists(full_file):
+						ExecUtils.create_file(full_file, cmd)
+					ExecUtils.input_file(full_file)
+				else: pass
+			return True 
+		except Exception as error:
+			cprint(f"Execution Failed {error}", "red")
 			return False
 
-		path = os.path.join(base, name)
-		if name.endswith('/') or name.endswith(os.sep):
-			os.makedirs(path, exist_ok=True)
-		else:
-			os.makedirs(os.path.dirname(path), exist_ok=True)
-			if not os.path.exists(path):
-				with open(path, "w") as file:
-					pass
-		return True
-	except Exception:
-		return False
-
-def remove_file(path):
-	try:
-		if os.path.isdir(path):
-			shutil.rmtree(path)
-		elif os.path.exists(path):
-			os.remove(path)
-		return True
-	except Exception:
-		return False
-
-def copy_file(src, dst):
-	try:
-		if os.path.exists(dst) and os.path.isdir(dst):
-			if os.path.isdir(src):
-				shutil.copytree(src, 
-					os.path.join(
-						dst, 
-						os.path.basename(src)), 
-						dirs_exist_ok=True)
-			else:
-				os.makedirs(dst, exist_ok=True)
-				shutil.copy2(src, 
-					os.path.join(dst, os.path.basename(src)))
+	def _full_path_data( self , CmdHandler, folder ):
+		if isinstance( CmdHandler, ScriptHandler ):
+			content = CmdHandler.execute( folder )
+			return content
 		else: 
-			with open(dst, "w", encoding='utf-8') as file_w:
-				with open(src, "r", encoding="utf-8") as file_r:
-					file_w.write(file_r.read())
-		return True
-	except Exception:
-		return False
+			return CmdHandler
 
-def move_file(src, dst):
-	try:
-		if os.path.exists(src) and os.path.exists(dst):
-			shutil.move(src, dst)
-		else:
-			os.rename(src, dst)
-		return True
-	except Exception:
-		return False
+# convert raw inputs to tokens
+class RawCmdParser:
+	def __init__(self, cmd_string):
+		self.cmd_string = cmd_string
 
-def join(data1, data2):
-	if not isinstance(data1, list):
-		data1 = [data1]
-	if not isinstance(data2, list):
-		data2 = [data2]
-	return [(a, b) for a in data1 for b in data2]
+	def getUntil(self, start_index, c_char):
+		cur_data  = c_char
 
-def build_command_tree(commands, root=None):
-	for cmd in commands:
-		optr = cmd.optr
-		if root is None:
-			root = Node(cmd)
-		else:
-			if optr in (CHDIR, COPY, CUT):
-				child = root
-				if optr != CHDIR:
-					child.status.optr = optr
-					cmd.optr = None
-				else:
-					child.status.optr = optr
-				root = Node(cmd)
-				child.parent = root
-				root.add_child(child)
-			else:
-				root.add_child(Node(cmd, parent=root))
-	return root
+		while start_index < len( self.cmd_string ):
 
-def get_high_depth_node(croot, depth=0):
-	for children in croot.children:
-		if children.children:
-			return get_high_depth_node(children, depth+1)
-	return croot
-
-def list_contents(folders):
-	if not isinstance(folders, list):
-		folders = [('.', folders)]
-	try:
-		for parent, child in folders:
-			folder = os.path.join(parent, child) 
-			if os.path.exists(folder) and os.path.isfile(folder):
-				with open(folder, "r", encoding="utf-8") as txt_file:
-					print(txt_file.read())
-				return
-			with os.scandir(folder) as d_files:
-				for file_ in d_files:
-					name = file_.name
-					name = name +'/' if file_.is_dir() else name
-					print(f"\t{name}")
-	except Exception as error:
-		print(error)
-
-def execute_command_tree(croot, proot, folder_trace):
-	if not croot: return
-
-
-	if not proot and not croot.children and croot.status.optr == CHDIR:
-		try:
-			if os.path.isdir(croot.status.data):
-				os.chdir(croot.status.data)
-			else: 
-				with open(croot.status.data, "r", encoding='utf-8') as read_file:
-					print(read_file.read())
-		except Exception as error:
-			print(error)
-		return
-
-
-	real_path = join(folder_trace, croot.status.data)
-
-	if croot.status.optr == LIST_CONTENTS:
-		list_contents(real_path)
-
-	if croot.status.optr in (CHDIR, CUT, COPY):
-		folder_trace = real_path
-
-	for node in croot.children:
-		if node == proot:
-			continue
-
-		parent = node.parent
-		data = node.status.data
-		op = node.status.optr
-
-		if isinstance(data, Script):
-			try:
-				data = data.execute('.')
-			except Exception as error:
-				print(error)
-
-		if op == LIST_CONTENTS:
-			list_contents(os.path.join(real_path, data))
-			continue
-
-		pairs = join(real_path, data)
-
-		for pdata, cdata in pairs:
-			pdata = os.path.join(*pdata)
-			current = os.path.join(pdata, cdata) \
-				if isinstance(cdata, str) else pdata
-
-			if op == CREATE:
-				if not os.path.exists(current):
-					create_file(pdata, cdata)
-				else: print(f"{cdata} already exists.")
-
-			elif op == REMOVE:
-				if os.path.exists(current):
-					remove_file(current)
-				else: print(f"{cdata} not found.")
-
-			elif op == INPUT:
-				if not os.path.exists(current):
-					create_file(pdata, cdata)
-				input_file(current)
-
-			elif op in (COPY, CUT):
-				if os.path.exists(cdata):
-					if op == COPY: 
-						copy_file(cdata, pdata)
-					else: move_file(cdata, pdata)
-				else: print(f"Source {cdata} not found.")
-
-	execute_command_tree(croot.parent, croot, folder_trace)
-
-def get_commands(line):
-	if not line.strip():
+			if self.cmd_string[ start_index ] == c_char:
+				cur_data += c_char
+				return start_index, cur_data.strip()
+	
+			cur_data  += self.cmd_string[ start_index ]
+			start_index += 1
+		
 		return None
 
-	cmds = line.strip().split()
-	operator = None
-	results, lists = [], []
-	expr_script = ''
-	list_mode = False
-	expr_mode = False
+	def getList(self, start_index ):
+		list_data = []
+		cur_data  = ''
 
-	for token in cmds:
-		if expr_mode:
-			if token.endswith(EXPR_CLOSE):
-				expr_script += ' ' + token[:-1]
-				results.append(Status(operator, Script(expr_script.strip())))
-				expr_mode = False
-				operator = None
-				expr_script = ''
+		while start_index < len( self.cmd_string ):
+			if self.cmd_string[ start_index ] == LIST_CLOSE:
+				if len( cur_data ) > 0:
+					list_data.append( cur_data )
+				return start_index, list_data
+
+			if self.cmd_string[ start_index ].isspace():
+				if len( cur_data ) > 0:
+					list_data.append( cur_data )
+					cur_data = ''
+			
+			elif self.cmd_string[ start_index ] == EXPR_OPEN:
+				cmd_length, push_node = getExpr( self.cmd_string, start_index ) or [0, None]
+				if push_node:
+					list_data.append( push_node )
+					start_index = cmd_length
+
+			elif self.cmd_string[ start_index ] == APPO:
+				cmd_length, push_node = getUntil( self.cmd_string, start_index + 1, APPO ) or [0, None]
+				if push_node:
+					list_data.append( push_node )
+					start_index = cmd_length
+
+			else: cur_data += self.cmd_string[ start_index ]
+			start_index += 1
+
+		return None
+
+	def getExpr(self, start_index ):
+		cur_index 	= start_index
+		cur_data  	= ''
+		expr_opened = 0
+
+		while cur_index < len( self.cmd_string ):
+			cur_data  += self.cmd_string[ cur_index ]
+			
+			if self.cmd_string[ cur_index ] == EXPR_CLOSE:
+				expr_opened -= 1
+				if not expr_opened:
+					return cur_index, cur_data
+
+			if self.cmd_string[ cur_index ] == EXPR_OPEN:
+				expr_opened += 1
+
+			cur_index += 1
+
+		return None
+
+	def getRawCmdChain( self ):
+		self.cmd_string = self.cmd_string.strip() + ' '
+		cur_index, end_index = 0, len( self.cmd_string )
+
+		raw_cmd_chain = []
+
+		while cur_index < end_index:
+			c_char = self.cmd_string[ cur_index ]
+			data = None
+
+			if c_char.isspace():
+				cur_index += 1
+				continue
+
+			if c_char == LIST_OPEN:
+				data = self.getList( cur_index + 1 )
+
+			elif c_char == EXPR_OPEN:
+				data = self.getExpr( cur_index )
+
+			elif c_char in S_CMDS_A or c_char in S_CMDS_B:
+				raw_cmd_chain.append( c_char )
+
+			elif c_char == APPO:
+				data = self.getUntil( cur_index + 1, APPO )
+	
+			else: data = self.getUntil( cur_index , ' ' )
+
+			cmd_length, push_node = data if data else [0, None]
+
+			if push_node is not None:
+				if isinstance( push_node, str ) and push_node.endswith(LIST_CONTENTS):
+					raw_cmd_chain.append( push_node[:-1] )
+					raw_cmd_chain.append( push_node[-1] )
+				else:
+					raw_cmd_chain.append( push_node )
+					push_node = None
+				cur_index = cmd_length
+
+			cur_index += 1
+		return raw_cmd_chain
+
+#convert tokens to CmdHandler and execute
+class CmdExecuter( RawCmdParser ):
+	def __init__(self, rawStringCmd ):
+		super().__init__( rawStringCmd )
+		self.rawCmdToHandler()
+		self.trace_folder = BASE_DIR
+
+	def execute_commands( self ):
+		if self.cmdHandler is None:
+			sys.stderr.write("Failed to execute command\n")
+			return False
+
+		for cmdHnd in self.cmdHandler:
+			if not cmdHnd.execute_command( self.trace_folder ):
+				return False 
+			if cmdHnd.optr == CHDIR:
+				self.trace_folder = BASE_DIR
+
+		return True
+
+	def rawCmdToHandler( self ):
+		cmdList = self.getRawCmdChain()
+		if cmdList is None:
+			self.cmdHandler = None
+			return
+
+		tempStack 	= []
+		CmdHandler  = []
+		optr 	  = None
+		double    = False
+
+		for cmd in cmdList:
+			if isinstance( cmd, list ):
+				tempStack.append( cmd )
 			else:
-				expr_script += ' ' + token
+				cmd = cmd.strip()
+				if cmd.startswith( EXPR_OPEN ):
+					tempStack.append( ScriptHandler( cmd ) )
 
-		elif list_mode:
-			if token.endswith(LIST_CLOSE):
-				lists.append(token[:-1])
-				results.append(Status(operator, lists.copy()))
-				lists.clear()
-				list_mode = False
-				operator = None
-			else:
-				lists.append(token)
+				elif cmd in D_CMDS:
+					optr   = cmd
+					double = True
+					continue
 
-		elif token.startswith(CHDIR):
-			results.append(Status(CHDIR, token[1:]))
+				elif cmd in S_CMDS_B:
+					optr = cmd
+					continue
 
-		elif token.endswith(LIST_CONTENTS):
-			results.append(Status(LIST_CONTENTS, token[:-1]))
+				elif cmd not in S_CMDS_A: 
+					tempStack.append( cmd )
 
-		elif is_operator(token):
-			operator = token
+			if optr is not None or cmd in S_CMDS_A:
+				optr = optr or cmd
 
-		elif token.startswith(INPUT):
-			results.append(Status(INPUT, token[1:]))
+				if tempStack == []:
+					tempStack.append( BASE_DIR )
+				right = tempStack.pop()
 
-		elif token.startswith(LIST_OPEN):
-			list_mode = True
-			if len(token) > 1:
-				lists.append(token[1:])
+				if not double:
+					nCmdHnd = SingleCmdHandler( right, optr )
+					CmdHandler.append( nCmdHnd )
+					optr = None
+					continue
 
-		elif token.startswith(EXPR_OPEN):
-			expr_mode = True
-			if len(token) > 1:
-				expr_script += token[1:]
+				if double and tempStack == []:
+					tempStack.append( BASE_DIR )
 
-		else:
-			results.append(Status(operator, token))
-			operator = None
+				left = tempStack.pop()
+				nCmdHnd = DoubleCmdHandler( left, right, optr ) 
+				CmdHandler.append( nCmdHnd )
+				optr   = None
+				double = False
 
-	root = build_command_tree(results)
-	high_depth_node = get_high_depth_node(root)
-	execute_command_tree(high_depth_node, None, '.')
+		self.cmdHandler = CmdHandler
 
-def main():
-	print("\n**** COMMAND CANNOT BE REVERSED, VERIFY BEFORE RUNNING... ****\n")
-	print("Scripts will be executed on current folders...\n")
 
-	while True:
-		try:
-			get_commands(input(f"{date.today()}: "))
-		except KeyboardInterrupt:
-			print("\nExiting shell.")
-			break
-		except Exception as e:
-			print("Error:", e)
+def input_cmd( ):
+	run_input = True
+	full_cmd = ''
+
+	opened = 0
+	while run_input:
+		if not opened:
+			cmd = input(colored(f"{date.today()}::$ ", "cyan"))
+		else: cmd = input(colored("::$ ", "cyan"))
+		opened += cmd.count( LIST_OPEN ) + cmd.count( EXPR_OPEN )
+		opened -= cmd.count( LIST_CLOSE ) + cmd.count( EXPR_CLOSE ) 
+
+		full_cmd += cmd
+		if opened > 0:
+			continue
+		elif opened < 0:
+			raise ValueError("Invalid Command")
+		return full_cmd
 
 
 if __name__ == "__main__":
-	main()
+	if platform.system() == "Windows":
+		os.system("cls")
+	else:
+		os.system("clear")
+
+	while True:
+		try:
+			cmd = input_cmd( )
+			cmd = cmd.strip()
+			cmd_executer = CmdExecuter( cmd )
+			cmd_executer.execute_commands() 
+		except Exception as error:
+			cprint(f"ErRrRoR {error}", "red")
