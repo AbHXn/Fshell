@@ -2,18 +2,6 @@ A lightweight, custom DSL (Domain Specific Language) for managing and executing 
 
 ---
 
-## Features
-
-* **Custom DSL commands** for filesystem operations.
-* Execute scripts with expressions (`{}`) and lists (`[]`).
-* Supports regex-based file matching.
-* Handles both files and folders.
-* Interactive input mode for writing files.
-* Colorful console output using `termcolor`.
-* Cross-platform support (Windows, Linux).
-
----
-
 ## Usage
 
 # Usage
@@ -45,6 +33,8 @@ dir + file                     -> create file inside dir
 #file                          -> open file for input
 #[file1 file2 file3]           -> open multiple files
 *file                          -> print file contents
+file1 = file2                  -> copy file1 to file2
+file1 == file2                 -> append file1 content to file2
 ```
 
 ## Copy / Move
@@ -71,13 +61,6 @@ path2 -> ./test/path2
 ```
 
 
-## Notes
-
-* File operations are **destructive** — use caution with remove or move commands.
-* Regex patterns are applied to filenames for filtering.
-* Nested lists and expressions are supported but complex scripts may require careful formatting.
-* Works best in a dedicated project folder to avoid accidental file changes.
-
 ---
 
 ## Requirements
@@ -93,19 +76,13 @@ pip install termcolor
 
 ---
 
-## Limitations
+## Note
 
-* No sandboxing for destructive commands — files can be overwritten or deleted.
-* Global working directory changes (`chdir`) can affect the process.
-* Parser is basic and may fail with malformed expressions or deeply nested structures.
-* Regex patterns should be simple to avoid performance issues.
-
----
+This tool is intended for educational and experimental purposes only.
+File and folder operations performed using FileShell are irreversible — once deleted, they cannot be restored. Use with caution.
 
 ## License
 
 This project is provided as-is, for educational and prototyping purposes. Use at your own risk.
 
 ---
-
-Would you like me to also **add a small diagram showing command flow and handler classes**? It will make the README more visual and easier to understand.
