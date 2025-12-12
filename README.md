@@ -4,13 +4,13 @@ A lightweight, custom DSL (Domain Specific Language) for managing and executing 
 
 ## Usage
 
-## Directory
+# Directory
 ```
 .!                             -> list current directory
 *folder                        -> change directory
 ```
 
-## Create
+# Create
 ```
 + [file1 file2 file3]          -> create multiple files
 + file1 + file2 + file3        -> same as above
@@ -20,7 +20,7 @@ dir + file                     -> create file inside dir
 [dir a b] + [x y]              -> create x,y inside dir/, a/, b/
 ```
 
-## Input / View
+# Input / View
 ```
 #file                          -> open file for input
 #[file1 file2 file3]           -> open multiple files
@@ -29,7 +29,7 @@ file1 = file2                  -> copy file1 to file2
 file1 == file2                 -> append file1 content to file2
 ```
 
-## Copy / Move
+# Copy / Move
 ```
 [file1 file2] += folder        -> copy files to folder
 [file1 file2] -= folder        -> move files to folder
@@ -38,7 +38,7 @@ folder/ += dest                -> copy only CONTENTS of folder
 folder += dest                 -> copy entire folder
 ```
 
-## Path Storage
+# Path Storage
 ```
 name -> $                      -> store current path as 'name'
 &name += .                     -> copy stored-path contents here
@@ -55,7 +55,7 @@ path2 -> ./test/path2
 
 ---
 
-## Requirements
+# Requirements
 
 * Python 3.8+
 * [termcolor](https://pypi.org/project/termcolor/) for colored output
