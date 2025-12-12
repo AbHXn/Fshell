@@ -6,12 +6,6 @@ A lightweight, custom DSL (Domain Specific Language) for managing and executing 
 
 # Usage
 
-When FileShell starts, you will see:
-
-```
-2025-12-12@FSHELL::/home/system404/backup_fedora/Fshell$
-```
-
 ## Directory
 ```
 .!                             -> list current directory
