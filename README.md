@@ -16,18 +16,37 @@ A lightweight, custom DSL (Domain Specific Language) for managing and executing 
 
 ## Supported Commands
 
-| Symbol | Action                                |
-| ------ | ------------------------------------- |
-| `+`    | Create file or folder                 |
-| `-`    | Remove file or folder                 |
-| `+=`   | Copy file or folder                   |
-| `-=`   | Move (cut) file or folder             |
-| `*`    | Change folder / display file contents |
-| `#`    | Input content to a file               |
-| `{}`   | Expression / regex match              |
-| `[]`   | List of files or folders              |
-| `!`    | List contents of folder               |
-| `"`    | Quoted string                         |
+Directory
+.!                # list current directory
+*folder           # change directory
+
+Create Files / Folders
++ [f1 f2 f3]      # create multiple files
++ f1 + f2 + f3    # same as above
++ dir/ + [a/ b/]  # create folders inside dir
+dir + file        # create file inside dir
+[dir a b] + [x y] # create x,y in dir,a,b
+
+File Input / View
+#file             # open file
+#[f1 f2 f3]       # open files one by one
+*file             # print file contents
+
+Copy / Move
+[f1 f2] += folder   # copy files to folder
+[f1 f2] -= folder   # move files to folder
+folder/ += dst      # copy *contents* of folder
+folder += dst       # copy entire folder
+
+Path Storage
+name -> $         # store current path
+&name += .        # copy contents of stored path here
+
+Stored Path Usage
+path1 -> ./test/path1
+path2 -> ./test/path2
+[&path1 &path2] -= .   # move stored folders here
+
 
 ---
 
