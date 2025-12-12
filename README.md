@@ -71,7 +71,7 @@ pip install termcolor
 ## Note
 
 This tool is intended for educational and experimental purposes only.
-File and folder operations performed using FileShell are irreversible — once deleted, they cannot be restored. Use with caution.
+File and folder operations performed using FShell are irreversible — once deleted, they cannot be restored. Use with caution.
 
 ## License
 
