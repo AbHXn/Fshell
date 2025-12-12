@@ -14,89 +14,62 @@ A lightweight, custom DSL (Domain Specific Language) for managing and executing 
 
 ---
 
-## Supported Commands
-
-Directory
-.!                # list current directory
-*folder           # change directory
-
-Create Files / Folders
-+ [f1 f2 f3]      # create multiple files
-+ f1 + f2 + f3    # same as above
-+ dir/ + [a/ b/]  # create folders inside dir
-dir + file        # create file inside dir
-[dir a b] + [x y] # create x,y in dir,a,b
-
-File Input / View
-#file             # open file
-#[f1 f2 f3]       # open files one by one
-*file             # print file contents
-
-Copy / Move
-[f1 f2] += folder   # copy files to folder
-[f1 f2] -= folder   # move files to folder
-folder/ += dst      # copy *contents* of folder
-folder += dst       # copy entire folder
-
-Path Storage
-name -> $         # store current path
-&name += .        # copy contents of stored path here
-
-Stored Path Usage
-path1 -> ./test/path1
-path2 -> ./test/path2
-[&path1 &path2] -= .   # move stored folders here
-
-
----
-
 ## Usage
 
-1. **Run the script:**
+# Usage
 
-```bash
-python Fshell.py
-```
-
-2. **Interactive command prompt:**
+When FileShell starts, you will see:
 
 ```
-2025-12-02::$ [command]
+2025-12-12@FSHELL::/home/system404/backup_fedora/Fshell$
 ```
 
-3. **Example commands:**
-
-* Read all `.txt` files in current directory:
-
+## Directory
 ```
-{.txt} !
+.!                             -> list current directory
+*folder                        -> change directory
 ```
 
-* Create a folder `new_folder`:
-
+## Create
 ```
-+ new_folder/
-```
++ [file1 file2 file3]          -> create multiple files
++ file1 + file2 + file3        -> same as above
 
-* Move a file `file1.txt` to `backup/`:
-
-```
-file1.txt -= backup/
++ dir/ + [a/ b/]               -> create folder 'dir' with subfolders
+dir + file                     -> create file inside dir
+[dir a b] + [x y]              -> create x,y inside dir/, a/, b/
 ```
 
-* Copy multiple files using a list:
-
+## Input / View
 ```
-[file1.txt file2.txt] += backup/
-```
-
-* Input content into a file:
-
-```
-# new_file.txt
+#file                          -> open file for input
+#[file1 file2 file3]           -> open multiple files
+*file                          -> print file contents
 ```
 
----
+## Copy / Move
+```
+[file1 file2] += folder        -> copy files to folder
+[file1 file2] -= folder        -> move files to folder
+
+folder/ += dest                -> copy only CONTENTS of folder
+folder += dest                 -> copy entire folder
+```
+
+## Path Storage
+```
+name -> $                      -> store current path as 'name'
+&name += .                     -> copy stored-path contents here
+```
+
+## Stored Path Usage
+```
+path1 -> ./test/path1
+path2 -> ./test/path2
+
+[&path1 &path2] -= .           -> move stored folders here
+```
+
 
 ## Notes
 
